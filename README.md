@@ -230,18 +230,25 @@ Faites preuve de pédagogie et soyez clair dans vos explications et procedures d
 
 **Exercice 1 :**  
 Quels sont les composants dont la perte entraîne une perte de données ?  
-  
-*..Répondez à cet exercice ici..*
+
+Quand on supprimes le PVC, on supprimes le volume persistant qui contient le fichier de base de données. Le pod peut redémarrer/revenir, mais il redémarre sans l’ancien fichier, donc l’app reboot a “vide”.
 
 **Exercice 2 :**  
-Expliquez nous pourquoi nous n'avons pas perdu les données lors de la supression du PVC pra-data  
-  
-*..Répondez à cet exercice ici..*
+Expliquez nous pourquoi nous n'avons pas perdu les données lors de la supression du PVC pra-data*
+
+Le pod est éphémère, mais les données a l'intérieur ne le sont pas : elles sont sur le PVC pra-data.
+Quand Kubernetes recrée le pod, il remonte le même PVC, donc le fichier SQLite est toujours là ce qui veux dire que les données restent.
 
 **Exercice 3 :**  
 Quels sont les RTO et RPO de cette solution ?  
   
-*..Répondez à cet exercice ici..*
+exécute régulièrement une sauvegarde (ici toutes les minutes),
+
+copie/exporte le fichier de base (SQLite) depuis pra-data vers pra-backup,
+
+crée des fichiers de sauvegarde horodatés (selon ton script/config),
+
+permet d’avoir des points de restauration récents.
 
 **Exercice 4 :**  
 Pourquoi cette solution (cet atelier) ne peux pas être utilisé dans un vrai environnement de production ? Que manque-t-il ?   
