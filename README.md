@@ -242,23 +242,31 @@ Quand Kubernetes recrée le pod, il remonte le même PVC, donc le fichier SQLite
 **Exercice 3 :**  
 Quels sont les RTO et RPO de cette solution ?  
   
-exécute régulièrement une sauvegarde (ici toutes les minutes),
-
-copie/exporte le fichier de base (SQLite) depuis pra-data vers pra-backup,
-
-crée des fichiers de sauvegarde horodatés (selon ton script/config),
-
-permet d’avoir des points de restauration récents.
+Le RTO c'est CronJob, qui fait une sauvegarde toutes les minutes vers pra-backup. Dans le cas de perte du PVC pra-data, on ne perd qu'au maximum les écritures réalisées depuis le dernier backup, qui est toutes les minutes.
 
 **Exercice 4 :**  
 Pourquoi cette solution (cet atelier) ne peux pas être utilisé dans un vrai environnement de production ? Que manque-t-il ?   
   
-*..Répondez à cet exercice ici..*
+SQLite : base de fichier local, qui n'est pas idéal en prod.
+
+Backups PVC dans le même cluster, si le cluster tombe, on perds les data + les backups.
+
+CronJob qui sauvegarde toutes les minutes pas suffisant sans stratégie.
+
+Pas de vérification d’intégrité : un backup peut être corrompu sans qu'on puisse le voir.
+
+Pas de monitoring / alerting PRA : si le CronJob fail pendant 2h, on ne le sais pas, donc ton RPO augmente en flèche explose.
+
+Pas de versioning / immutabilité : risque de sauvegarder une base déjà morte et d’écraser les données saines.
   
 **Exercice 5 :**  
 Proposez une archtecture plus robuste.   
   
-*..Répondez à cet exercice ici..*
+Remplacer SQLite par une BDD managée ou HA style PostgreSQL avec en plus des sauvegardes natives.
+
+Externaliser les backups hors du cluster :
+
+Object storage (S3/MinIO/Azure Blob/GCS) ajout d'un système de rétention + versioning.
 
 ---------------------------------------------------
 Séquence 6 : Ateliers  
