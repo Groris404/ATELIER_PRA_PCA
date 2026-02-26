@@ -285,8 +285,108 @@ Difficulté : Moyenne (~2 heures)
 ### **Atelier 2 : Choisir notre point de restauration**  
 Aujourd’hui nous restaurobs “le dernier backup”. Nous souhaitons **ajouter la capacité de choisir un point de restauration**.
 
-*..Décrir ici votre procédure de restauration (votre runbook)..*  
-  
+On va utiliser les backups de PVC pra-backup (CronJob).
+Premier temps on gelee la prod : 
+
+```
+kubectl -n pra scale deployment flask --replicas=0
+kubectl -n pra patch cronjob sqlite-backup -p '{"spec":{"suspend":true}}'
+kubectl -n pra delete job --all
+```
+On démarre un pod “debug” temporaire : 
+
+```
+kubectl -n pra run debug-backup \
+  --rm -it \
+  --image=alpine \
+  --overrides='
+{
+  "spec": {
+    "containers": [{
+      "name": "debug",
+      "image": "alpine",
+      "command": ["sh"],
+      "stdin": true,
+      "tty": true,
+      "volumeMounts": [{
+        "name": "backup",
+        "mountPath": "/backup"
+      }]
+    }],
+    "volumes": [{
+      "name": "backup",
+      "persistentVolumeClaim": { "claimName": "pra-backup" }
+    }]
+  }
+}'
+```
+
+On liste toutes les backup possible :
+
+```
+ls -lt /backup/* | head -n 20
+```
+
+Définir le fichier à restaurer (remplacer par le fichier choisi) :
+
+```
+RESTORE_FILE="/backup/backup-YYYYMMDD-HHMMSS.db"
+```
+On restaure : 
+```
+kubectl -n pra delete job sqlite-restore --ignore-not-found
+
+cat <<EOF | kubectl apply -f -
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sqlite-restore
+  namespace: pra
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: restore
+        image: alpine
+        command: ["/bin/sh","-c"]
+        args:
+        - |
+          set -e
+          echo "Restoring from: ${RESTORE_FILE}"
+          ls -lh "${RESTORE_FILE}"
+          cp "${RESTORE_FILE}" /data/app.db
+          echo "Restore done:"
+          ls -lh /data/app.db
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: backup
+          mountPath: /backup
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: pra-data
+      - name: backup
+        persistentVolumeClaim:
+          claimName: pra-backup
+EOF
+```
+On reboot l'app : 
+
+```
+kubectl -n pra scale deployment flask --replicas=1
+kubectl -n pra patch cronjob sqlite-backup -p '{"spec":{"suspend":false}}'
+```
+
+On valide le tout : 
+
+```
+kubectl -n pra port-forward svc/flask 8080:80 >/tmp/web.log 2>&1 &
+curl -s "http://localhost:8080/count"
+curl -s "http://localhost:8080/consultation"
+```
+
 ---------------------------------------------------
 Evaluation
 ---------------------------------------------------
